@@ -1,7 +1,7 @@
 import torch
 
 
-class ImageNoiseExpander:
+class ImageExpandNoiser:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -200,7 +200,8 @@ class ImageExpandDirectionOption:
             }
         }
 
-    RETURN_TYPES = ("direction",)
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("direction",)
     FUNCTION = "get_option"
     CATEGORY = "Image/Processing"
 
@@ -217,7 +218,8 @@ class ImageExpandModeOption:
             }
         }
 
-    RETURN_TYPES = ("mode",)
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("mode",)
     FUNCTION = "get_option"
     CATEGORY = "Image/Processing"
 
