@@ -114,3 +114,78 @@ class ImageNoiseExpander:
                 out_mask[:, :, -noise_width:] = 1.0
 
         return (out_image, out_mask)
+
+
+class ImageExpandMerger:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "image1": ("IMAGE",),
+                "image2": ("IMAGE",),
+                "mask": ("MASK",),
+                "direction": (["top", "bottom", "left", "right"],),
+                "mode": (["outside", "inside"],),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "merge_images"
+    CATEGORY = "Image/Processing"
+
+    def merge_images(self, image1, image2, mask, direction, mode):
+        # image1: [B, H1, W1, C] (Original)
+        # image2: [B, H2, W2, C] (Expanded/Inpainted)
+        # mask: [B, H, W] (Should match image2 usually)
+
+        # Ensure batch dimension for mask if missing
+        if len(mask.shape) == 2:
+            mask = mask.unsqueeze(0)
+
+        B, H, W, C = image2.shape
+
+        # Calculate expand_size from mask
+        # Mask is 1.0 at the expanded/generated region
+        expand_size = 0
+        if direction in ["top", "bottom"]:
+            # Check a column (e.g., middle column)
+            col_idx = W // 2
+            expand_size = int(torch.sum(mask[0, :, col_idx]).item())
+        else:
+            # Check a row (e.g., middle row)
+            row_idx = H // 2
+            expand_size = int(torch.sum(mask[0, row_idx, :]).item())
+
+        out_image = None
+
+        if mode == "outside":
+            # Append the generated part of image2 to image1
+            if direction == "top":
+                new_part = image2[:, :expand_size, :, :]
+                out_image = torch.cat((new_part, image1), dim=1)
+            elif direction == "bottom":
+                new_part = image2[:, -expand_size:, :, :]
+                out_image = torch.cat((image1, new_part), dim=1)
+            elif direction == "left":
+                new_part = image2[:, :, :expand_size, :]
+                out_image = torch.cat((new_part, image1), dim=2)
+            elif direction == "right":
+                new_part = image2[:, :, -expand_size:, :]
+                out_image = torch.cat((image1, new_part), dim=2)
+
+        else:  # mode == "inside"
+            # Overlay masked part of image2 onto image1
+            mask_expanded = mask.unsqueeze(-1)  # [B, H, W, 1]
+            
+            # Ensure image1 is on same device as image2
+            if image1.device != image2.device:
+                image1 = image1.to(image2.device)
+            
+            # Ensure mask is on same device as image2
+            if mask_expanded.device != image2.device:
+                mask_expanded = mask_expanded.to(image2.device)
+
+            # Basic overlay: image1 (background) + image2 (foreground) * mask
+            out_image = image1 * (1.0 - mask_expanded) + image2 * mask_expanded
+
+        return (out_image,)
