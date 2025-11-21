@@ -176,11 +176,11 @@ class ImageExpandMerger:
         else:  # mode == "inside"
             # Overlay masked part of image2 onto image1
             mask_expanded = mask.unsqueeze(-1)  # [B, H, W, 1]
-            
+
             # Ensure image1 is on same device as image2
             if image1.device != image2.device:
                 image1 = image1.to(image2.device)
-            
+
             # Ensure mask is on same device as image2
             if mask_expanded.device != image2.device:
                 mask_expanded = mask_expanded.to(image2.device)
