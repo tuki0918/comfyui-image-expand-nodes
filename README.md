@@ -46,3 +46,9 @@ Merges the original image with the generated result.
    ```
 3. Restart ComfyUI.
 
+
+## Related Tools
+
+**[image-overlap-merger](https://github.com/tuki0918/image-overlap-merger)**
+
+- Automatically detect and merge overlapping regions of two images
