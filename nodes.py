@@ -142,6 +142,25 @@ class ImageExpandMerger:
         # image2: [B, H2, W2, C] (Expanded/Inpainted)
         # mask: [B, H, W] (Should match image2 usually)
 
+        if image1.device != image2.device:
+            image1 = image1.to(image2.device)
+
+        if image1.shape[3] != image2.shape[3]:
+            if image1.shape[3] == 3 and image2.shape[3] == 4:
+                alpha = torch.ones(
+                    (image1.shape[0], image1.shape[1], image1.shape[2], 1),
+                    device=image1.device,
+                    dtype=image1.dtype,
+                )
+                image1 = torch.cat((image1, alpha), dim=3)
+            elif image1.shape[3] == 4 and image2.shape[3] == 3:
+                alpha = torch.ones(
+                    (image2.shape[0], image2.shape[1], image2.shape[2], 1),
+                    device=image2.device,
+                    dtype=image2.dtype,
+                )
+                image2 = torch.cat((image2, alpha), dim=3)
+
         # Ensure batch dimension for mask if missing
         if len(mask.shape) == 2:
             mask = mask.unsqueeze(0)
@@ -180,10 +199,6 @@ class ImageExpandMerger:
         else:  # mode == "inside"
             # Overlay masked part of image2 onto image1
             mask_expanded = mask.unsqueeze(-1)  # [B, H, W, 1]
-
-            # Ensure image1 is on same device as image2
-            if image1.device != image2.device:
-                image1 = image1.to(image2.device)
 
             # Ensure mask is on same device as image2
             if mask_expanded.device != image2.device:
