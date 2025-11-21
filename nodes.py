@@ -7,8 +7,7 @@ class ImageExpandNoiser:
         return {
             "required": {
                 "image": ("IMAGE",),
-                "direction": (["top", "bottom", "left", "right"],),
-                "mode": (["outside", "inside"],),
+                "options": ("EXPAND_OPTION",),
                 "percentage": (
                     "FLOAT",
                     {"default": 0.2, "min": 0.1, "max": 0.5, "step": 0.01},
@@ -20,7 +19,10 @@ class ImageExpandNoiser:
     FUNCTION = "expand_image"
     CATEGORY = "Image/Processing"
 
-    def expand_image(self, image, direction, mode, percentage):
+    def expand_image(self, image, options, percentage):
+        direction = options["direction"]
+        mode = options["mode"]
+
         # image: [Batch, Height, Width, Channels]
         # Output images should be in the same format
         # Masks should be [Batch, Height, Width]
@@ -124,8 +126,7 @@ class ImageExpandMerger:
                 "image1": ("IMAGE",),
                 "image2": ("IMAGE",),
                 "mask": ("MASK",),
-                "direction": (["top", "bottom", "left", "right"],),
-                "mode": (["outside", "inside"],),
+                "options": ("EXPAND_OPTION",),
             },
         }
 
@@ -133,7 +134,10 @@ class ImageExpandMerger:
     FUNCTION = "merge_images"
     CATEGORY = "Image/Processing"
 
-    def merge_images(self, image1, image2, mask, direction, mode):
+    def merge_images(self, image1, image2, mask, options):
+        direction = options["direction"]
+        mode = options["mode"]
+
         # image1: [B, H1, W1, C] (Original)
         # image2: [B, H2, W2, C] (Expanded/Inpainted)
         # mask: [B, H, W] (Should match image2 usually)
@@ -191,37 +195,20 @@ class ImageExpandMerger:
         return (out_image,)
 
 
-class ImageExpandDirectionOption:
+class ImageExpandOption:
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
                 "direction": (["top", "bottom", "left", "right"],),
-            }
-        }
-
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("direction",)
-    FUNCTION = "get_option"
-    CATEGORY = "Image/Processing"
-
-    def get_option(self, direction):
-        return (direction,)
-
-
-class ImageExpandModeOption:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
                 "mode": (["outside", "inside"],),
             }
         }
 
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("mode",)
+    RETURN_TYPES = ("EXPAND_OPTION",)
+    RETURN_NAMES = ("options",)
     FUNCTION = "get_option"
     CATEGORY = "Image/Processing"
 
-    def get_option(self, mode):
-        return (mode,)
+    def get_option(self, direction, mode):
+        return ({"direction": direction, "mode": mode},)

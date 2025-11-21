@@ -1,22 +1,19 @@
 from .nodes import (
     ImageExpandNoiser,
     ImageExpandMerger,
-    ImageExpandDirectionOption,
-    ImageExpandModeOption,
+    ImageExpandOption,
 )
 
 NODE_CLASS_MAPPINGS = {
     "ImageExpandNoiser": ImageExpandNoiser,
     "ImageExpandMerger": ImageExpandMerger,
-    "ImageExpandDirectionOption": ImageExpandDirectionOption,
-    "ImageExpandModeOption": ImageExpandModeOption,
+    "ImageExpandOption": ImageExpandOption,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "ImageExpandNoiser": "Image Expand Noiser",
     "ImageExpandMerger": "Image Expand Merger",
-    "ImageExpandDirectionOption": "Image Expand Direction Option",
-    "ImageExpandModeOption": "Image Expand Mode Option",
+    "ImageExpandOption": "Image Expand Option",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
