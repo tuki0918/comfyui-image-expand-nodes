@@ -189,3 +189,37 @@ class ImageExpandMerger:
             out_image = image1 * (1.0 - mask_expanded) + image2 * mask_expanded
 
         return (out_image,)
+
+
+class ImageExpandDirectionOption:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "direction": (["top", "bottom", "left", "right"],),
+            }
+        }
+
+    RETURN_TYPES = ("direction",)
+    FUNCTION = "get_option"
+    CATEGORY = "Image/Processing"
+
+    def get_option(self, direction):
+        return (direction,)
+
+
+class ImageExpandModeOption:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "mode": (["outside", "inside"],),
+            }
+        }
+
+    RETURN_TYPES = ("mode",)
+    FUNCTION = "get_option"
+    CATEGORY = "Image/Processing"
+
+    def get_option(self, mode):
+        return (mode,)
