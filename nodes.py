@@ -227,3 +227,16 @@ class ImageExpandOption:
 
     def get_option(self, direction, mode):
         return ({"direction": direction, "mode": mode},)
+
+
+NODE_CLASS_MAPPINGS = {
+    "ImageExpandNoiser": ImageExpandNoiser,
+    "ImageExpandMerger": ImageExpandMerger,
+    "ImageExpandOption": ImageExpandOption,
+}
+
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "ImageExpandNoiser": "Image Expand Noiser",
+    "ImageExpandMerger": "Image Expand Merger",
+    "ImageExpandOption": "Image Expand Option",
+}
