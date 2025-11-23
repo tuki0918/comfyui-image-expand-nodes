@@ -57,6 +57,10 @@ Merges the original image with the generated result.
 
 ## Related Tools
 
+**[image-noise-expander](https://github.com/tuki0918/image-noise-expander)**
+
+- Expand Image with Noise and Crop + Mask
+
 **[image-overlap-merger](https://github.com/tuki0918/image-overlap-merger)**
 
 - Automatically detect and merge overlapping regions of two images
