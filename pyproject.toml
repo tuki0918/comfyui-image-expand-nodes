@@ -28,8 +28,8 @@ Documentation = "https://github.com/tuki0918/comfyui-image-expand-nodes/wiki"
 "Bug Tracker" = "https://github.com/tuki0918/comfyui-image-expand-nodes/issues"
 
 [tool.comfy]
-PublisherId = ""
-DisplayName = "comfyui-image-expand-nodes"
+PublisherId = "tuki0918"
+DisplayName = "ComfyUI Image Expand Nodes"
 Icon = ""
 includes = [] 
 # "requires-comfyui" = ">=1.0.0"  # ComfyUI version compatibility
