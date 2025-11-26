@@ -1,4 +1,5 @@
 import torch
+import math
 
 
 class ImageExpandNoiser:
@@ -31,9 +32,9 @@ class ImageExpandNoiser:
 
         # Determine expansion amount in pixels
         if direction in ["top", "bottom"]:
-            expand_size = int(H * percentage)
+            expand_size = math.ceil(H * percentage)
         else:  # left, right
-            expand_size = int(W * percentage)
+            expand_size = math.ceil(W * percentage)
 
         if mode == "outside":
             new_H, new_W = H, W
