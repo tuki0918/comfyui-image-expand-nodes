@@ -14,13 +14,16 @@ class ImageExpandNoiser:
                     {"default": 0.2, "min": 0.1, "max": 0.5, "step": 0.01},
                 ),
             },
+            "optional": {
+                "mask": ("MASK",),
+            },
         }
 
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "expand_image"
     CATEGORY = "Image/Processing"
 
-    def expand_image(self, image, options, percentage):
+    def expand_image(self, image, options, percentage, mask=None):
         direction = options["direction"]
         mode = options["mode"]
 
@@ -29,6 +32,18 @@ class ImageExpandNoiser:
         # Masks should be [Batch, Height, Width]
 
         B, H, W, C = image.shape
+
+        if mask is not None:
+            if len(mask.shape) == 2:
+                mask = mask.unsqueeze(0)
+            if mask.shape[1:] != (H, W):
+                mask = torch.nn.functional.interpolate(
+                    mask.unsqueeze(1), size=(H, W), mode="nearest"
+                ).squeeze(1)
+            if mask.shape[0] != B:
+                mask = mask.expand(B, -1, -1)
+            if mask.device != image.device:
+                mask = mask.to(image.device)
 
         # Determine expansion amount in pixels
         if direction in ["top", "bottom"]:
@@ -51,7 +66,10 @@ class ImageExpandNoiser:
                 # Target position: expand_size to H
                 visible_h = H - expand_size
                 out_image[:, expand_size:, :, :] = image[:, :visible_h, :, :]
-                out_mask[:, expand_size:, :] = 0.0
+                if mask is not None:
+                    out_mask[:, expand_size:, :] = mask[:, :visible_h, :]
+                else:
+                    out_mask[:, expand_size:, :] = 0.0
 
             elif direction == "bottom":
                 # Expand bottom -> Image moves up, Bottom is noise
@@ -59,19 +77,28 @@ class ImageExpandNoiser:
                 # Target position: 0 to H - expand_size
                 visible_h = H - expand_size
                 out_image[:, :visible_h, :, :] = image[:, expand_size:, :, :]
-                out_mask[:, :visible_h, :] = 0.0
+                if mask is not None:
+                    out_mask[:, :visible_h, :] = mask[:, expand_size:, :]
+                else:
+                    out_mask[:, :visible_h, :] = 0.0
 
             elif direction == "left":
                 # Expand left -> Image moves right, Left is noise
                 visible_w = W - expand_size
                 out_image[:, :, expand_size:, :] = image[:, :, :visible_w, :]
-                out_mask[:, :, expand_size:] = 0.0
+                if mask is not None:
+                    out_mask[:, :, expand_size:] = mask[:, :, :visible_w]
+                else:
+                    out_mask[:, :, expand_size:] = 0.0
 
             elif direction == "right":
                 # Expand right -> Image moves left, Right is noise
                 visible_w = W - expand_size
                 out_image[:, :, :visible_w, :] = image[:, :, expand_size:, :]
-                out_mask[:, :, :visible_w] = 0.0
+                if mask is not None:
+                    out_mask[:, :, :visible_w] = mask[:, :, expand_size:]
+                else:
+                    out_mask[:, :, :visible_w] = 0.0
 
         else:  # mode == "inside"
             new_H, new_W = H, W
@@ -79,7 +106,12 @@ class ImageExpandNoiser:
             # Use original image as base
             out_image = image.clone()
             # Initialize mask with 0.0 (original image)
-            out_mask = torch.zeros((B, H, W), dtype=torch.float32, device=image.device)
+            if mask is not None:
+                out_mask = mask.clone()
+            else:
+                out_mask = torch.zeros(
+                    (B, H, W), dtype=torch.float32, device=image.device
+                )
 
             # Overlay noise logic
             if direction == "top":
