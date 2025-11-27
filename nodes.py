@@ -8,7 +8,7 @@ class ImageExpandNoiser:
         return {
             "required": {
                 "image": ("IMAGE",),
-                "options": ("EXPAND_OPTION",),
+                "expand_options": ("EXPAND_OPTION",),
                 "percentage": (
                     "FLOAT",
                     {"default": 0.2, "min": 0.1, "max": 0.5, "step": 0.01},
@@ -23,9 +23,9 @@ class ImageExpandNoiser:
     FUNCTION = "expand_image"
     CATEGORY = "Image/Processing"
 
-    def expand_image(self, image, options, percentage, mask=None):
-        direction = options["direction"]
-        mode = options["mode"]
+    def expand_image(self, image, expand_options, percentage, mask=None):
+        direction = expand_options["direction"]
+        mode = expand_options["mode"]
 
         # image: [Batch, Height, Width, Channels]
         # Output images should be in the same format
@@ -159,7 +159,7 @@ class ImageExpandMerger:
                 "image1": ("IMAGE",),
                 "image2": ("IMAGE",),
                 "mask": ("MASK",),
-                "options": ("EXPAND_OPTION",),
+                "expand_options": ("EXPAND_OPTION",),
             },
         }
 
@@ -167,9 +167,9 @@ class ImageExpandMerger:
     FUNCTION = "merge_images"
     CATEGORY = "Image/Processing"
 
-    def merge_images(self, image1, image2, mask, options):
-        direction = options["direction"]
-        mode = options["mode"]
+    def merge_images(self, image1, image2, mask, expand_options):
+        direction = expand_options["direction"]
+        mode = expand_options["mode"]
 
         # image1: [B, H1, W1, C] (Original)
         # image2: [B, H2, W2, C] (Expanded/Inpainted)
@@ -254,7 +254,7 @@ class ImageExpandOption:
         }
 
     RETURN_TYPES = ("EXPAND_OPTION",)
-    RETURN_NAMES = ("options",)
+    RETURN_NAMES = ("expand_options",)
     FUNCTION = "get_option"
     CATEGORY = "Image/Processing"
 
