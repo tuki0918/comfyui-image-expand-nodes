@@ -1,4 +1,5 @@
 import torch
+import math
 
 
 class ImageExpandNoiser:
@@ -7,11 +8,14 @@ class ImageExpandNoiser:
         return {
             "required": {
                 "image": ("IMAGE",),
-                "options": ("EXPAND_OPTION",),
+                "expand_options": ("EXPAND_OPTION",),
                 "percentage": (
                     "FLOAT",
                     {"default": 0.2, "min": 0.1, "max": 0.5, "step": 0.01},
                 ),
+            },
+            "optional": {
+                "mask": ("MASK",),
             },
         }
 
@@ -19,9 +23,9 @@ class ImageExpandNoiser:
     FUNCTION = "expand_image"
     CATEGORY = "Image/Processing"
 
-    def expand_image(self, image, options, percentage):
-        direction = options["direction"]
-        mode = options["mode"]
+    def expand_image(self, image, expand_options, percentage, mask=None):
+        direction = expand_options["direction"]
+        mode = expand_options["mode"]
 
         # image: [Batch, Height, Width, Channels]
         # Output images should be in the same format
@@ -29,11 +33,23 @@ class ImageExpandNoiser:
 
         B, H, W, C = image.shape
 
+        if mask is not None:
+            if len(mask.shape) == 2:
+                mask = mask.unsqueeze(0)
+            if mask.shape[1:] != (H, W):
+                mask = torch.nn.functional.interpolate(
+                    mask.unsqueeze(1), size=(H, W), mode="nearest"
+                ).squeeze(1)
+            if mask.shape[0] != B:
+                mask = mask.expand(B, -1, -1)
+            if mask.device != image.device:
+                mask = mask.to(image.device)
+
         # Determine expansion amount in pixels
         if direction in ["top", "bottom"]:
-            expand_size = int(H * percentage)
+            expand_size = math.ceil(H * percentage)
         else:  # left, right
-            expand_size = int(W * percentage)
+            expand_size = math.ceil(W * percentage)
 
         if mode == "outside":
             new_H, new_W = H, W
@@ -50,7 +66,10 @@ class ImageExpandNoiser:
                 # Target position: expand_size to H
                 visible_h = H - expand_size
                 out_image[:, expand_size:, :, :] = image[:, :visible_h, :, :]
-                out_mask[:, expand_size:, :] = 0.0
+                if mask is not None:
+                    out_mask[:, expand_size:, :] = mask[:, :visible_h, :]
+                else:
+                    out_mask[:, expand_size:, :] = 0.0
 
             elif direction == "bottom":
                 # Expand bottom -> Image moves up, Bottom is noise
@@ -58,19 +77,28 @@ class ImageExpandNoiser:
                 # Target position: 0 to H - expand_size
                 visible_h = H - expand_size
                 out_image[:, :visible_h, :, :] = image[:, expand_size:, :, :]
-                out_mask[:, :visible_h, :] = 0.0
+                if mask is not None:
+                    out_mask[:, :visible_h, :] = mask[:, expand_size:, :]
+                else:
+                    out_mask[:, :visible_h, :] = 0.0
 
             elif direction == "left":
                 # Expand left -> Image moves right, Left is noise
                 visible_w = W - expand_size
                 out_image[:, :, expand_size:, :] = image[:, :, :visible_w, :]
-                out_mask[:, :, expand_size:] = 0.0
+                if mask is not None:
+                    out_mask[:, :, expand_size:] = mask[:, :, :visible_w]
+                else:
+                    out_mask[:, :, expand_size:] = 0.0
 
             elif direction == "right":
                 # Expand right -> Image moves left, Right is noise
                 visible_w = W - expand_size
                 out_image[:, :, :visible_w, :] = image[:, :, expand_size:, :]
-                out_mask[:, :, :visible_w] = 0.0
+                if mask is not None:
+                    out_mask[:, :, :visible_w] = mask[:, :, expand_size:]
+                else:
+                    out_mask[:, :, :visible_w] = 0.0
 
         else:  # mode == "inside"
             new_H, new_W = H, W
@@ -78,7 +106,12 @@ class ImageExpandNoiser:
             # Use original image as base
             out_image = image.clone()
             # Initialize mask with 0.0 (original image)
-            out_mask = torch.zeros((B, H, W), dtype=torch.float32, device=image.device)
+            if mask is not None:
+                out_mask = mask.clone()
+            else:
+                out_mask = torch.zeros(
+                    (B, H, W), dtype=torch.float32, device=image.device
+                )
 
             # Overlay noise logic
             if direction == "top":
@@ -126,7 +159,7 @@ class ImageExpandMerger:
                 "image1": ("IMAGE",),
                 "image2": ("IMAGE",),
                 "mask": ("MASK",),
-                "options": ("EXPAND_OPTION",),
+                "expand_options": ("EXPAND_OPTION",),
             },
         }
 
@@ -134,9 +167,9 @@ class ImageExpandMerger:
     FUNCTION = "merge_images"
     CATEGORY = "Image/Processing"
 
-    def merge_images(self, image1, image2, mask, options):
-        direction = options["direction"]
-        mode = options["mode"]
+    def merge_images(self, image1, image2, mask, expand_options):
+        direction = expand_options["direction"]
+        mode = expand_options["mode"]
 
         # image1: [B, H1, W1, C] (Original)
         # image2: [B, H2, W2, C] (Expanded/Inpainted)
@@ -221,7 +254,7 @@ class ImageExpandOption:
         }
 
     RETURN_TYPES = ("EXPAND_OPTION",)
-    RETURN_NAMES = ("options",)
+    RETURN_NAMES = ("expand_options",)
     FUNCTION = "get_option"
     CATEGORY = "Image/Processing"
 
