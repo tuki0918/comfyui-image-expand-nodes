@@ -2,11 +2,15 @@
 
 Custom nodes for ComfyUI to expand images with noise for outpainting or inpainting purposes. This allows for seamless image extension in any direction.
 
-### Expansion Example
+### Basic Expansion
 
 ![](https://raw.githubusercontent.com/tuki0918/comfyui-image-expand-nodes/refs/heads/docs/docs/image1.png)
 
-### Merge Expansion Example
+### Expansion with Mask
+
+![](https://raw.githubusercontent.com/tuki0918/comfyui-image-expand-nodes/refs/heads/docs/docs/image3.png)
+
+### Seamless Merging
 
 ![](https://raw.githubusercontent.com/tuki0918/comfyui-image-expand-nodes/refs/heads/docs/docs/image2.png)
 
