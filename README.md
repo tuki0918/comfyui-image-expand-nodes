@@ -35,6 +35,7 @@ Prepares the image for the generation process.
     - `image`: Source image.
     - `options`: Configuration from `Image Expand Option`.
     - `percentage`: The ratio of expansion relative to the image size (default: 0.2).
+    - `mask`: (Optional) Mask to merge.
 - **Outputs**:
     - `IMAGE`: Image with noise added to the target area.
     - `MASK`: Mask corresponding to the noisy area (useful for inpainting).
