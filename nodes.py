@@ -9,10 +9,6 @@ class ImageExpandNoiser:
             "required": {
                 "image": ("IMAGE",),
                 "expand_options": ("EXPAND_OPTION",),
-                "percentage": (
-                    "FLOAT",
-                    {"default": 0.2, "min": 0.1, "max": 0.5, "step": 0.01},
-                ),
             },
             "optional": {
                 "mask": ("MASK",),
@@ -23,9 +19,10 @@ class ImageExpandNoiser:
     FUNCTION = "expand_image"
     CATEGORY = "Image/Processing"
 
-    def expand_image(self, image, expand_options, percentage, mask=None):
+    def expand_image(self, image, expand_options, mask=None):
         direction = expand_options["direction"]
         mode = expand_options["mode"]
+        percentage = float(expand_options.get("percentage", 0.2))
 
         # image: [Batch, Height, Width, Channels]
         # Output images should be in the same format
@@ -158,8 +155,10 @@ class ImageExpandMerger:
             "required": {
                 "image1": ("IMAGE",),
                 "image2": ("IMAGE",),
-                "mask": ("MASK",),
                 "expand_options": ("EXPAND_OPTION",),
+            },
+            "optional": {
+                "mask": ("MASK",),
             },
         }
 
@@ -167,9 +166,36 @@ class ImageExpandMerger:
     FUNCTION = "merge_images"
     CATEGORY = "Image/Processing"
 
-    def merge_images(self, image1, image2, mask, expand_options):
+    def _normalize_mask(self, mask, batch, height, width, device):
+        if mask is None:
+            return None
+
+        if len(mask.shape) == 2:
+            mask = mask.unsqueeze(0)
+
+        if mask.shape[1:] != (height, width):
+            mask = torch.nn.functional.interpolate(
+                mask.unsqueeze(1), size=(height, width), mode="nearest"
+            ).squeeze(1)
+
+        if mask.shape[0] != batch:
+            mask = mask.expand(batch, -1, -1)
+
+        if mask.device != device:
+            mask = mask.to(device)
+
+        return mask.to(torch.float32).clamp(0.0, 1.0)
+
+    def _calc_expand_size(self, height, width, direction, percentage):
+        percentage = float(percentage)
+        if direction in ["top", "bottom"]:
+            return int(max(1, min(height - 1, math.ceil(height * percentage))))
+        return int(max(1, min(width - 1, math.ceil(width * percentage))))
+
+    def merge_images(self, image1, image2, expand_options, mask=None):
         direction = expand_options["direction"]
         mode = expand_options["mode"]
+        percentage = float(expand_options.get("percentage", 0.2))
 
         # image1: [B, H1, W1, C] (Original)
         # image2: [B, H2, W2, C] (Expanded/Inpainted)
@@ -194,51 +220,81 @@ class ImageExpandMerger:
                 )
                 image2 = torch.cat((image2, alpha), dim=3)
 
-        # Ensure batch dimension for mask if missing
-        if len(mask.shape) == 2:
-            mask = mask.unsqueeze(0)
+        B, H1, W1, C1 = image1.shape
+        _, H2, W2, _ = image2.shape
+        if (H1, W1) != (H2, W2):
+            # Merger expects image2 to be the same size as image1 for the shift-based merge.
+            # If it differs, fall back to returning image2 (common for already-expanded canvases).
+            return (image2,)
 
-        B, H, W, C = image2.shape
-
-        # Calculate expand_size from mask
-        # Mask is 1.0 at the expanded/generated region
-        expand_size = 0
-        if direction in ["top", "bottom"]:
-            # Check a column (e.g., middle column)
-            col_idx = W // 2
-            expand_size = int(torch.sum(mask[0, :, col_idx]).item())
-        else:
-            # Check a row (e.g., middle row)
-            row_idx = H // 2
-            expand_size = int(torch.sum(mask[0, row_idx, :]).item())
+        expand_size = self._calc_expand_size(H1, W1, direction, percentage)
+        mask = self._normalize_mask(mask, B, H1, W1, image2.device)
 
         out_image = None
 
         if mode == "outside":
-            # Append the generated part of image2 to image1
+            # Append generated part of image2 to image1.
+            # If mask is provided, apply image2's masked overlap onto image1 (shift-aware)
+            # to preserve seam blending.
+            merged_original = image1
+            if mask is not None:
+                mask_e = mask.unsqueeze(-1)  # [B, H, W, 1]
+                merged_original = image1.clone()
+
+                if direction == "top":
+                    overlap_h = H1 - expand_size
+                    img2_overlap = image2[:, expand_size:, :, :]
+                    mask_overlap = mask_e[:, expand_size:, :, :]
+                    merged_original[:, :overlap_h, :, :] = (
+                        merged_original[:, :overlap_h, :, :] * (1.0 - mask_overlap)
+                        + img2_overlap * mask_overlap
+                    )
+                elif direction == "bottom":
+                    overlap_h = H1 - expand_size
+                    img2_overlap = image2[:, :overlap_h, :, :]
+                    mask_overlap = mask_e[:, :overlap_h, :, :]
+                    merged_original[:, expand_size:, :, :] = (
+                        merged_original[:, expand_size:, :, :] * (1.0 - mask_overlap)
+                        + img2_overlap * mask_overlap
+                    )
+                elif direction == "left":
+                    overlap_w = W1 - expand_size
+                    img2_overlap = image2[:, :, expand_size:, :]
+                    mask_overlap = mask_e[:, :, expand_size:, :]
+                    merged_original[:, :, :overlap_w, :] = (
+                        merged_original[:, :, :overlap_w, :] * (1.0 - mask_overlap)
+                        + img2_overlap * mask_overlap
+                    )
+                elif direction == "right":
+                    overlap_w = W1 - expand_size
+                    img2_overlap = image2[:, :, :overlap_w, :]
+                    mask_overlap = mask_e[:, :, :overlap_w, :]
+                    merged_original[:, :, expand_size:, :] = (
+                        merged_original[:, :, expand_size:, :] * (1.0 - mask_overlap)
+                        + img2_overlap * mask_overlap
+                    )
+
             if direction == "top":
                 new_part = image2[:, :expand_size, :, :]
-                out_image = torch.cat((new_part, image1), dim=1)
+                out_image = torch.cat((new_part, merged_original), dim=1)
             elif direction == "bottom":
                 new_part = image2[:, -expand_size:, :, :]
-                out_image = torch.cat((image1, new_part), dim=1)
+                out_image = torch.cat((merged_original, new_part), dim=1)
             elif direction == "left":
                 new_part = image2[:, :, :expand_size, :]
-                out_image = torch.cat((new_part, image1), dim=2)
+                out_image = torch.cat((new_part, merged_original), dim=2)
             elif direction == "right":
                 new_part = image2[:, :, -expand_size:, :]
-                out_image = torch.cat((image1, new_part), dim=2)
+                out_image = torch.cat((merged_original, new_part), dim=2)
 
         else:  # mode == "inside"
-            # Overlay masked part of image2 onto image1
-            mask_expanded = mask.unsqueeze(-1)  # [B, H, W, 1]
-
-            # Ensure mask is on same device as image2
-            if mask_expanded.device != image2.device:
-                mask_expanded = mask_expanded.to(image2.device)
-
-            # Basic overlay: image1 (background) + image2 (foreground) * mask
-            out_image = image1 * (1.0 - mask_expanded) + image2 * mask_expanded
+            # Overlay masked part of image2 onto image1.
+            # If no mask is given, return image2 as-is.
+            if mask is None:
+                out_image = image2
+            else:
+                mask_expanded = mask.unsqueeze(-1)  # [B, H, W, 1]
+                out_image = image1 * (1.0 - mask_expanded) + image2 * mask_expanded
 
         return (out_image,)
 
@@ -250,6 +306,10 @@ class ImageExpandOption:
             "required": {
                 "direction": (["top", "bottom", "left", "right"],),
                 "mode": (["outside", "inside"],),
+                "percentage": (
+                    "FLOAT",
+                    {"default": 0.2, "min": 0.1, "max": 0.5, "step": 0.01},
+                ),
             }
         }
 
@@ -258,8 +318,10 @@ class ImageExpandOption:
     FUNCTION = "get_option"
     CATEGORY = "Image/Processing"
 
-    def get_option(self, direction, mode):
-        return ({"direction": direction, "mode": mode},)
+    def get_option(self, direction, mode, percentage):
+        return (
+            {"direction": direction, "mode": mode, "percentage": float(percentage)},
+        )
 
 
 NODE_CLASS_MAPPINGS = {

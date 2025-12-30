@@ -28,13 +28,13 @@ A configuration node to define the expansion strategy.
 - **mode**:
     - `outside`: Increases the image canvas size.
     - `inside`: Maintains image size but overlays noise on the specified area.
+- **percentage**: The ratio of expansion relative to the image size (default: 0.2).
 
 ### 2. Image Expand Noiser
 Prepares the image for the generation process.
 - **Inputs**:
     - `image`: Source image.
     - `options`: Configuration from `Image Expand Option`.
-    - `percentage`: The ratio of expansion relative to the image size (default: 0.2).
     - `mask`: (Optional) Mask to merge.
 - **Outputs**:
     - `IMAGE`: Image with noise added to the target area.
@@ -45,7 +45,7 @@ Merges the original image with the generated result.
 - **Inputs**:
     - `image1`: The original source image.
     - `image2`: The generated image (output from KSampler/VAE Decode).
-    - `mask`: The mask used for generation.
+    - `mask`: (Optional) The mask used for generation (helps preserve seam blending).
     - `options`: Configuration from `Image Expand Option`.
 - **Outputs**:
     - `IMAGE`: The final combined image.
